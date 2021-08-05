@@ -37,7 +37,7 @@ namespace Bicep.Core.UnitTests.Registry
         {
             var module = CreateModule("fakeScheme:fakeModule");
             var dispatcher = CreateDispatcher();
-            dispatcher.ValidateModuleReference(module, out var failureBuilder).Should().BeFalse();
+            dispatcher.TryGetModuleReference(module, out var failureBuilder).Should().BeNull();
             failureBuilder!.Should().NotBeNull();
 
             using (new AssertionScope())
@@ -47,29 +47,12 @@ namespace Bicep.Core.UnitTests.Registry
             }
 
             var localModule = CreateModule("test.bicep");
-            dispatcher.ValidateModuleReference(localModule, out var localModuleFailureBuilder).Should().BeFalse();
+            dispatcher.TryGetModuleReference(localModule, out var localModuleFailureBuilder).Should().BeNull();
             using (new AssertionScope())
             {
                 localModuleFailureBuilder!.Should().HaveCode("BCP189");
                 localModuleFailureBuilder!.Should().HaveMessage("Module references are not supported in this context.");
             }
-        }
-
-        [TestMethod]
-        [SuppressMessage("Style", "VSTHRD200:Use \"Async\" suffix for async methods", Justification = "Not needed")]
-        public async Task NoRegistries_NonValidateMethods_ShouldThrow()
-        {
-            var module = CreateModule("fakeScheme:fakeModule");
-            var moduleDispatcher = CreateDispatcher();
-
-            Action isAvailableFail = () => moduleDispatcher.IsModuleAvailable(module, out _);
-            isAvailableFail.Should().Throw<InvalidOperationException>().WithMessage($"The specified module is not valid. Call {nameof(IModuleDispatcher.ValidateModuleReference)}() first.");
-
-            Action entryPointFail = () => moduleDispatcher.TryGetLocalModuleEntryPointUri(new Uri("untitled://two"), module, out _);
-            entryPointFail.Should().Throw<InvalidOperationException>().WithMessage($"The specified module is not valid. Call {nameof(IModuleDispatcher.ValidateModuleReference)}() first.");
-
-            Func<Task> restoreFail = async () => await moduleDispatcher.RestoreModules(new[] { module });
-            await restoreFail.Should().ThrowAsync<InvalidOperationException>().WithMessage($"The specified module is not valid. Call {nameof(IModuleDispatcher.ValidateModuleReference)}() first.");
         }
 
         [TestMethod]
@@ -134,34 +117,34 @@ namespace Bicep.Core.UnitTests.Registry
             var goodModule3 = CreateModule("mock:validRef3");
             var badModule = CreateModule("mock:badRef");
 
-            dispatcher.ValidateModuleReference(goodModule, out var goodValidationBuilder).Should().BeTrue();
+            dispatcher.TryGetModuleReference(goodModule, out var goodValidationBuilder).Should().Be(validRef);
             goodValidationBuilder!.Should().BeNull();
             
-            dispatcher.ValidateModuleReference(badModule, out var badValidationBuilder).Should().BeFalse();
+            dispatcher.TryGetModuleReference(badModule, out var badValidationBuilder).Should().BeNull();
             badValidationBuilder!.Should().NotBeNull();
             badValidationBuilder!.Should().HaveCode("BCPMock");
             badValidationBuilder!.Should().HaveMessage("Bad ref error");
 
-            dispatcher.IsModuleAvailable(goodModule, out var goodAvailabilityBuilder).Should().BeFalse();
+            dispatcher.GetModuleRestoreStatus(validRef, out var goodAvailabilityBuilder).Should().Be(ModuleRestoreStatus.Unknown);
             goodAvailabilityBuilder!.Should().HaveCode("BCP190");
             goodAvailabilityBuilder!.Should().HaveMessage("The module with reference \"mock:validRef\" has not been restored.");
 
-            dispatcher.IsModuleAvailable(goodModule2, out var goodAvailabilityBuilder2).Should().BeTrue();
+            dispatcher.GetModuleRestoreStatus(validRef2, out var goodAvailabilityBuilder2).Should().Be(ModuleRestoreStatus.Succeeded);
             goodAvailabilityBuilder2!.Should().BeNull();
 
-            dispatcher.IsModuleAvailable(goodModule3, out var goodAvailabilityBuilder3).Should().BeFalse();
+            dispatcher.GetModuleRestoreStatus(validRef3, out var goodAvailabilityBuilder3).Should().Be(ModuleRestoreStatus.Unknown);
             goodAvailabilityBuilder3!.Should().HaveCode("BCP190");
             goodAvailabilityBuilder3!.Should().HaveMessage("The module with reference \"mock:validRef3\" has not been restored.");
 
-            dispatcher.TryGetLocalModuleEntryPointUri(new Uri("mock://mock"), goodModule, out var entryPointBuilder).Should().Be(new Uri("untitled://validRef"));
+            dispatcher.TryGetLocalModuleEntryPointUri(new Uri("mock://mock"), validRef, out var entryPointBuilder).Should().Be(new Uri("untitled://validRef"));
             entryPointBuilder!.Should().BeNull();
 
-            dispatcher.TryGetLocalModuleEntryPointUri(new Uri("mock://mock"), goodModule3, out var entryPointBuilder3).Should().Be(new Uri("untitled://validRef3"));
+            dispatcher.TryGetLocalModuleEntryPointUri(new Uri("mock://mock"), validRef3, out var entryPointBuilder3).Should().Be(new Uri("untitled://validRef3"));
             entryPointBuilder3!.Should().BeNull();
 
-            (await dispatcher.RestoreModules(new[] { goodModule, goodModule3 })).Should().BeTrue();
+            (await dispatcher.RestoreModules(new[] { validRef, validRef3 })).Should().BeTrue();
 
-            dispatcher.IsModuleAvailable(goodModule3, out var goodAvailabilityBuilder3AfterRestore).Should().BeFalse();
+            dispatcher.GetModuleRestoreStatus(validRef3, out var goodAvailabilityBuilder3AfterRestore).Should().Be(ModuleRestoreStatus.Failed);
             goodAvailabilityBuilder3AfterRestore!.Should().HaveCode("RegFail");
             goodAvailabilityBuilder3AfterRestore!.Should().HaveMessage("Failed to restore module");
         }

@@ -103,6 +103,8 @@ namespace Bicep.Cli
                 // Handles the context of this invocation
                 .AddSingleton(invocationContext)
 
+                .AddMemoryCache()
+
                 // Adds the various services required by the commands
                 .AddSingleton<IFileResolver, FileResolver>()
                 .AddSingleton<IModuleRegistryProvider, DefaultModuleRegistryProvider>()

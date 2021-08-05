@@ -80,7 +80,7 @@ namespace Bicep.LanguageServer
         {
             await server.Initialize(cancellationToken);
 
-            var scheduler = server.GetService<IModuleRestoreScheduler>();
+            var scheduler = server.GetService<IModuleRestoreScheduler>() ?? throw new InvalidOperationException("Unable to locate the module restore scheduler in the DI container.");
             scheduler.Start();
 
             await server.WaitForExit;
@@ -103,6 +103,7 @@ namespace Bicep.LanguageServer
             services.AddSingleton<ISymbolResolver, BicepSymbolResolver>();
             services.AddSingleton<ICompletionProvider, BicepCompletionProvider>();
             services.AddSingleton<IModuleRestoreScheduler, ModuleRestoreScheduler>();
+            services.AddMemoryCache();
         }
     }
 }
